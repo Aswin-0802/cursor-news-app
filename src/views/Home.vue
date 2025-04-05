@@ -20,7 +20,7 @@
     </div>
     <div v-else class="row">
       <div v-for="item in filteredItems" :key="item.guid" class="col-md-4 mb-4">
-        <div class="card h-100">
+        <div class="card h-100" @click="openArticle(item.link)" role="button">
           <!-- Media Content -->
           <div v-if="item.media && (item.media.url || item.media.thumbnail || item.enclosure?.url)" class="media-container">
             <!-- Video Content -->
@@ -37,13 +37,14 @@
                 :src="item.media.url"
                 controls
                 class="w-100"
+                @click.stop
               ></video>
             </div>
             <!-- Image Content -->
-            <img
-              v-else
+            <img 
+              v-else 
               :src="item.media?.url || item.media?.thumbnail || item.enclosure?.url"
-              class="card-img-top"
+              class="card-img-top" 
               alt="News image"
               @error="handleImageError"
             >
@@ -52,10 +53,14 @@
             <h5 class="card-title">{{ item.title }}</h5>
             <p class="card-text" v-html="item.contentSnippet || item.content"></p>
             <div class="d-flex justify-content-between align-items-center mt-auto">
-              <a :href="item.link" target="_blank" class="btn btn-primary">Read More</a>
+              <a :href="item.link" 
+                target="_blank" 
+                class="btn btn-primary"
+                @click.stop
+              >Read More</a>
               <button 
                 class="btn btn-outline-secondary" 
-                @click="toggleBookmark(item)"
+                @click.stop="toggleBookmark(item)"
                 :class="{ 'active': isBookmarked(item) }"
               >
                 <i class="bi" :class="isBookmarked(item) ? 'bi-bookmark-fill' : 'bi-bookmark'"></i>
@@ -154,6 +159,9 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    openArticle(link) {
+      window.open(link, '_blank')
     }
   },
   async created() {
@@ -177,6 +185,7 @@ export default {
   transition: transform 0.2s ease-in-out;
   max-height: 400px;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .card:hover {
@@ -246,6 +255,8 @@ export default {
 .btn {
   padding: 0.25rem 0.5rem;
   font-size: 0.875rem;
+  position: relative;
+  z-index: 2;
 }
 
 .row {
