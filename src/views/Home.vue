@@ -1,16 +1,19 @@
 <template>
   <div>
-    <div v-if="loading" class="text-center my-5">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <p class="mt-2">Loading news feeds...</p>
-    </div>
-    <div v-else-if="error" class="alert alert-warning" role="alert">
+    <div v-if="error" class="alert alert-warning" role="alert">
       <h4 class="alert-heading">Unable to load news</h4>
       <p>{{ error }}</p>
       <hr>
       <button class="btn btn-primary" @click="retryLoading">Retry Loading</button>
+    </div>
+    <div v-if="loading" class="loader-container">
+      <div class="infinity-loader">
+        <div class="infinity-path">
+          <div class="infinity-circle"></div>
+          <div class="infinity-circle"></div>
+        </div>
+      </div>
+      <p class="loading-text">Loading news feeds...</p>
     </div>
     <div v-else-if="filteredItems.length === 0" class="alert alert-info">
       No news items found. Please try again later.
@@ -87,8 +90,8 @@ export default {
   },
   data() {
     return {
-      loading: true,
-      error: null
+      error: null,
+      loading: true
     }
   },
   computed: {
@@ -146,20 +149,20 @@ export default {
       this.loading = true
       try {
         await this.$store.dispatch('fetchFeeds')
-        this.loading = false
       } catch (error) {
         this.error = 'Unable to load news feeds. Please check your internet connection and try again.'
+      } finally {
         this.loading = false
       }
     }
   },
   async created() {
+    this.loading = true
     try {
-      this.loading = true
       await this.$store.dispatch('fetchFeeds')
-      this.loading = false
     } catch (error) {
       this.error = 'Unable to load news feeds. Please check your internet connection and try again.'
+    } finally {
       this.loading = false
     }
   }
@@ -172,6 +175,8 @@ export default {
   display: flex;
   flex-direction: column;
   transition: transform 0.2s ease-in-out;
+  max-height: 400px;
+  overflow: hidden;
 }
 
 .card:hover {
@@ -183,13 +188,25 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
+  padding: 0.75rem;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .media-container {
   position: relative;
   width: 100%;
-  padding-top: 56.25%; /* 16:9 Aspect Ratio */
+  padding-top: 40%; /* Reduced aspect ratio */
   background-color: #f8f9fa;
+  overflow: hidden;
 }
 
 .media-container img,
@@ -211,24 +228,120 @@ export default {
   height: 100%;
 }
 
-.btn-outline-secondary.active {
-  background-color: #6c757d;
-  color: white;
-}
-
-.bi {
-  font-size: 1.2rem;
-}
-
 .card-text {
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.card-footer {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.row {
+  margin: -0.5rem;
+}
+
+.col-md-4 {
+  padding: 0.5rem;
 }
 
 .alert {
-  margin-top: 2rem;
+  margin-top: 1rem;
   text-align: center;
+}
+
+.bi {
+  font-size: 1rem;
+}
+
+@media (min-width: 768px) {
+  .col-md-4 {
+    flex: 0 0 33.333333%;
+    max-width: 33.333333%;
+  }
+}
+
+@media (min-width: 992px) {
+  .col-md-4 {
+    flex: 0 0 25%;
+    max-width: 25%;
+  }
+}
+
+.loader-container {
+  text-align: center;
+  padding: 2rem;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-text {
+  margin-top: 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.infinity-loader {
+  position: relative;
+  width: 80px;
+  height: 40px;
+  margin: 0 auto;
+}
+
+.infinity-path {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 40px;
+}
+
+.infinity-circle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #0d6efd;
+  border-radius: 50%;
+  animation: infinity-animation 2s ease-in-out infinite;
+}
+
+.infinity-circle:nth-child(2) {
+  animation-delay: -1s;
+}
+
+@keyframes infinity-animation {
+  0% {
+    left: 0;
+    transform: translateX(0) scale(1);
+  }
+  25% {
+    transform: translateX(20px) scale(0.8);
+  }
+  50% {
+    left: 60px;
+    transform: translateX(-20px) scale(1);
+  }
+  75% {
+    transform: translateX(-40px) scale(0.8);
+  }
+  100% {
+    left: 0;
+    transform: translateX(0) scale(1);
+  }
 }
 </style> 

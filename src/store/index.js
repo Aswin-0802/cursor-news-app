@@ -1,56 +1,28 @@
 import { createStore } from 'vuex'
-import Parser from 'rss-parser'
 import axios from 'axios'
-
-const parser = new Parser({
-  customFields: {
-    item: [
-      'media:content',
-      'media:thumbnail',
-      'description',
-      'content:encoded',
-      'enclosure',
-      'itunes:image',
-      'media:group',
-      'media:description'
-    ]
-  }
-})
 
 export default createStore({
   state: {
     feeds: [],
     bookmarks: JSON.parse(localStorage.getItem('bookmarks') || '[]'),
     rssUrls: [
-      // Indian News Sources with Media
-      'https://www.thehindu.com/news/national/feeder/default.rss',
-      'https://www.thehindu.com/sport/feeder/default.rss',
-      'https://www.indiatoday.in/rss/1206577',
-      'https://www.indiatoday.in/rss/1206513',
-      'https://www.deccanherald.com/feeds/india.rss',
-      'https://www.deccanherald.com/feeds/sports.rss',
+      // Indian News Sources
+      'https://timesofindia.indiatimes.com/rssfeedstopstories.cms',
+      'https://timesofindia.indiatimes.com/rssfeeds/296589292.cms', // Sports
+      'https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml',
+      'https://www.hindustantimes.com/feeds/rss/sports/rssfeed.xml',
       
-      // International News Sources with Media
-      'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
-      'https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml',
+      // International News Sources
       'https://feeds.bbci.co.uk/news/world/rss.xml',
       'https://feeds.bbci.co.uk/sport/rss.xml',
       
-      // Tech News with Media
-      'https://feeds.feedburner.com/ndtv-gadgets',
-      'https://feeds.feedburner.com/ndtv-latest',
+      // Tech News
+      'https://www.techradar.com/rss',
+      'https://www.digitaltrends.com/feed/',
       
-      // Business News
-      'https://www.moneycontrol.com/rss/business.xml',
-      'https://www.moneycontrol.com/rss/economy.xml',
-      
-      // Entertainment with Media
-      'https://www.hollywoodreporter.com/feed/',
-      'https://www.bollywoodhungama.com/feed/',
-      
-      // Video News Sources
-      'https://www.youtube.com/feeds/videos.xml?channel_id=UCYfdidRxbB8Qhf0Nx7ioOYw', // NDTV
-      'https://www.youtube.com/feeds/videos.xml?channel_id=UCzLqOSZPtUKrmSEnlH4LAvw'  // BBC News
+      // Entertainment
+      'https://www.rollingstone.com/feed/',
+      'https://www.billboard.com/feed/'
     ]
   },
   mutations: {
@@ -73,50 +45,79 @@ export default createStore({
       try {
         const feedPromises = state.rssUrls.map(async url => {
           try {
-            const response = await axios.get(url, {
+            // Use a different CORS proxy
+            const proxyUrl = 'https://api.allorigins.win/raw?url='
+            const targetUrl = proxyUrl + encodeURIComponent(url)
+
+            const response = await axios.get(targetUrl, {
               headers: {
-                'Accept': 'application/rss+xml, application/xml, text/xml; q=0.9, */*;q=0.8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-              }
+                'Accept': 'application/rss+xml, application/xml, text/xml; q=0.9, */*;q=0.8'
+              },
+              timeout: 15000 // 15 second timeout
             })
             
-            const feed = await parser.parseString(response.data)
-            return feed.items.map(item => {
-              // Extract media content
-              const mediaContent = item['media:content'] || item.enclosure
-              const mediaGroup = item['media:group']
-              const thumbnail = item['media:thumbnail'] || item['itunes:image']
+            if (!response.data) {
+              console.warn(`Empty response from ${url}`)
+              return []
+            }
+
+            // Parse the XML response
+            const parser = new DOMParser()
+            const xmlDoc = parser.parseFromString(response.data, "text/xml")
+            
+            // Get all items
+            const items = xmlDoc.getElementsByTagName("item")
+            if (!items || items.length === 0) {
+              console.warn(`No items found in feed from ${url}`)
+              return []
+            }
+
+            return Array.from(items).map(item => {
+              const title = item.getElementsByTagName("title")[0]?.textContent || 'No Title'
+              const link = item.getElementsByTagName("link")[0]?.textContent || ''
+              const description = item.getElementsByTagName("description")[0]?.textContent || ''
+              const pubDate = item.getElementsByTagName("pubDate")[0]?.textContent || new Date().toISOString()
               
-              // Determine if it's a video
-              const isVideo = mediaContent && 
-                (mediaContent.type?.includes('video') || 
-                 mediaContent.url?.includes('youtube.com') ||
-                 mediaContent.url?.includes('youtu.be'))
+              // Extract media content
+              const enclosure = item.getElementsByTagName("enclosure")[0]
+              const mediaContent = enclosure ? {
+                url: enclosure.getAttribute("url"),
+                type: enclosure.getAttribute("type")
+              } : null
+
+              // Extract thumbnail
+              const mediaThumbnail = item.getElementsByTagName("media:thumbnail")[0]
+              const thumbnail = mediaThumbnail ? mediaThumbnail.getAttribute("url") : null
 
               return {
-                ...item,
-                guid: item.guid || item.link,
-                title: item.title || 'No Title',
-                content: item.content || item.description || item['content:encoded'] || '',
-                contentSnippet: item.contentSnippet || item.description || '',
+                guid: link,
+                title,
+                link,
+                content: description,
+                contentSnippet: description,
                 media: {
-                  type: isVideo ? 'video' : 'image',
-                  url: mediaContent?.url || mediaContent?.['$']?.url || mediaGroup?.['media:content']?.[0]?.['$']?.url,
-                  thumbnail: thumbnail?.['$']?.url || thumbnail?.href || mediaGroup?.['media:thumbnail']?.[0]?.['$']?.url,
-                  description: item['media:description'] || mediaGroup?.['media:description']?.[0] || '',
-                  duration: mediaContent?.['$']?.duration || mediaGroup?.['media:content']?.[0]?.['$']?.duration
+                  type: mediaContent?.type?.includes('video') ? 'video' : 'image',
+                  url: mediaContent?.url,
+                  thumbnail: thumbnail,
+                  description: description
                 },
-                pubDate: item.pubDate || item.isoDate || new Date().toISOString()
+                pubDate
               }
             })
           } catch (error) {
-            console.error(`Error fetching feed from ${url}:`, error)
+            console.error(`Error fetching feed from ${url}:`, error.message)
             return []
           }
         })
 
         const results = await Promise.all(feedPromises)
-        const allItems = results.flat().filter(item => item.title && item.link)
+        const allItems = results.flat().filter(item => item && item.title && item.link)
+        
+        if (allItems.length === 0) {
+          console.warn('No valid feed items found from any source')
+        } else {
+          console.log(`Successfully fetched ${allItems.length} news items`)
+        }
         
         // Sort by date, most recent first
         allItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
